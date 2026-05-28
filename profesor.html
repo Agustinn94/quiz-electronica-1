@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Panel del Profesor - En Vivo</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -17,27 +20,23 @@ h1{font-size:22px;text-align:center;margin-bottom:4px;background:linear-gradient
 .stat .num{font-size:24px;font-weight:700;color:#38ef7d}
 .stat .lbl{font-size:11px;color:#7a7fa8}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{background:#1e2454;padding:10px 8px;text-align:left;position:sticky;top:0}
+th{background:#1e2454;padding:10px 8px;text-align:left}
 td{padding:10px 8px;border-bottom:1px solid #1e2454}
 .badge{display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:600}
 .b-green{background:#1B5E20;color:#A5D6A7}
-.b-yellow{background:#F57F17;color:#FFF9C4}
 .b-red{background:#B71C1C;color:#FFCDD2}
-.b-blue{background:#0D47A1;color:#BBDEFB}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;animation:pulse 1.5s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.live{color:#38ef7d}
-.waiting{color:#7a7fa8}
-.config-warn{background:#1a0a0a;border:1px solid #ff4b2b;border-radius:10px;padding:16px;margin-bottom:16px;color:#ff8a80;font-size:13px}
+.status-box{border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;text-align:center}
+.status-ok{background:#0d2818;border:1px solid #38ef7d;color:#A5D6A7}
+.status-err{background:#1a0a0a;border:1px solid #ff4b2b;color:#ff8a80}
 </style>
 </head>
 <body>
 <h1>📊 Panel del Profesor</h1>
 <p class="sub">Prof. Gutiérrez — En vivo, se actualiza solo</p>
 
-<div id="config-warn" class="config-warn hidden">
-  ⚠️ Firebase no está configurado todavía. Editá el archivo config.js con tus datos de Firebase (ver instructivo paso 3).
-</div>
+<div id="status" class="status-box status-err">Conectando con la nube...</div>
 
 <div class="tabs">
   <div id="tab-e1" class="tab active" onclick="cambiar('E1')">Electrónica 1</div>
@@ -53,9 +52,7 @@ td{padding:10px 8px;border-bottom:1px solid #1e2454}
 
 <div style="overflow-x:auto">
 <table>
-  <thead><tr>
-    <th>Estado</th><th>Alumno</th><th>Progreso</th><th>Nota</th><th>Tiempo</th><th>Salidas</th><th>Última actividad</th>
-  </tr></thead>
+  <thead><tr><th>Estado</th><th>Alumno</th><th>Progreso</th><th>Nota</th><th>Tiempo</th><th>Salidas</th><th>Última act.</th></tr></thead>
   <tbody id="tabla"></tbody>
 </table>
 </div>
@@ -66,20 +63,38 @@ td{padding:10px 8px;border-bottom:1px solid #1e2454}
 <script src="config.js"></script>
 <script>
 let db=null, materiaActual="E1", datos={E1:{},E2:{}};
-try{
-  if(firebaseConfig.apiKey!=="PEGAR_AQUI"){
+const statusEl = document.getElementById("status");
+
+function arrancar(){
+  try{
+    if(typeof firebaseConfig === "undefined"){
+      statusEl.className="status-box status-err";
+      statusEl.textContent="❌ No se encontró config.js. Verificá que esté subido.";
+      return;
+    }
+    if(firebaseConfig.apiKey === "PEGAR_AQUI" || !firebaseConfig.apiKey){
+      statusEl.className="status-box status-err";
+      statusEl.textContent="❌ Firebase sin configurar en config.js";
+      return;
+    }
     firebase.initializeApp(firebaseConfig);
     db=firebase.database();
+    statusEl.className="status-box status-ok";
+    statusEl.textContent="✅ Conectado a la nube. Todo se actualiza en vivo.";
     escuchar("E1"); escuchar("E2");
-  } else {
-    document.getElementById("config-warn").classList.remove("hidden");
+  }catch(e){
+    statusEl.className="status-box status-err";
+    statusEl.textContent="❌ Error al conectar: "+e.message;
   }
-}catch(e){document.getElementById("config-warn").classList.remove("hidden");}
+}
 
 function escuchar(mat){
   db.ref("resultados/"+mat).on("value", snap=>{
     datos[mat] = snap.val() || {};
     if(mat===materiaActual) render();
+  }, err=>{
+    statusEl.className="status-box status-err";
+    statusEl.textContent="❌ Error de permisos en Firebase. Revisá las reglas (modo prueba).";
   });
 }
 
@@ -95,7 +110,6 @@ function render(){
   const arr = Object.values(d);
   const tabla = document.getElementById("tabla");
   tabla.innerHTML = "";
-
   document.getElementById("vacio").style.display = arr.length===0 ? "block" : "none";
 
   let terminados=0, sumaNotas=0, totalSalidas=0;
@@ -104,29 +118,24 @@ function render(){
   arr.forEach(r=>{
     if(r.terminado){terminados++; sumaNotas+=r.notaParcial||0;}
     totalSalidas += r.salidas||0;
-
     const tr = document.createElement("tr");
     let estadoBadge = r.terminado
       ? '<span class="badge b-green">✓ Terminó</span>'
-      : '<span><span class="dot live"></span><span class="live">En curso</span></span>';
+      : '<span><span class="dot" style="background:#38ef7d"></span><span style="color:#38ef7d">En curso</span></span>';
     if(r.evento==="salio_app" && !r.terminado)
       estadoBadge = '<span><span class="dot" style="background:#ff4b2b"></span><span style="color:#ff4b2b">⚠ Salió</span></span>';
-
     const notaBadge = r.terminado
       ? `<span class="badge ${r.notaParcial>=6?'b-green':'b-red'}">${r.notaParcial}/10</span>`
       : `<span style="color:#555">${r.notaParcial||0}/10</span>`;
-
     const min = Math.floor((r.tiempoUsado||0)/60), seg=(r.tiempoUsado||0)%60;
-
     tr.innerHTML = `
       <td>${estadoBadge}</td>
       <td style="font-weight:600">${r.nombre}</td>
-      <td>${r.respondidas||0}/${r.totalPreguntas||15} <span style="color:#555">(P${r.preguntaActual||1})</span></td>
+      <td>${r.respondidas||0}/${r.totalPreguntas||15}</td>
       <td>${notaBadge}</td>
       <td>${min}:${String(seg).padStart(2,'0')}</td>
-      <td><span class="${(r.salidas||0)>0?'b-red badge':''}">${r.salidas||0}</span></td>
-      <td style="font-size:11px;color:#7a7fa8">${r.ultimaActividad||"-"}</td>
-    `;
+      <td><span class="${(r.salidas||0)>0?'badge b-red':''}">${r.salidas||0}</span></td>
+      <td style="font-size:11px;color:#7a7fa8">${r.ultimaActividad||"-"}</td>`;
     tabla.appendChild(tr);
   });
 
@@ -135,6 +144,9 @@ function render(){
   document.getElementById("s-avg").textContent = terminados>0 ? (sumaNotas/terminados).toFixed(1) : "-";
   document.getElementById("s-warns").textContent = totalSalidas;
 }
+
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",arrancar);
+else arrancar();
 </script>
 </body>
 </html>
