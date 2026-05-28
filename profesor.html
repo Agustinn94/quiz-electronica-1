@@ -43,6 +43,11 @@ td{padding:10px 8px;border-bottom:1px solid #1e2454}
   <div id="tab-e2" class="tab" onclick="cambiar('E2')">Electrónica 2</div>
 </div>
 
+<div style="text-align:center;margin-bottom:16px">
+  <button onclick="resetearMateria()" style="padding:10px 18px;background:#c62828;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;margin:4px">🗑️ Borrar datos de esta materia</button>
+  <button onclick="resetearTodo()" style="padding:10px 18px;background:#7b1fa2;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;margin:4px">🗑️ Borrar TODO (E1 y E2)</button>
+</div>
+
 <div class="stats">
   <div class="stat"><div class="num" id="s-total">0</div><div class="lbl">Conectados</div></div>
   <div class="stat"><div class="num" id="s-done">0</div><div class="lbl">Terminaron</div></div>
@@ -143,6 +148,26 @@ function render(){
   document.getElementById("s-done").textContent = terminados;
   document.getElementById("s-avg").textContent = terminados>0 ? (sumaNotas/terminados).toFixed(1) : "-";
   document.getElementById("s-warns").textContent = totalSalidas;
+}
+
+
+function resetearMateria(){
+  if(!db){alert("No conectado a la nube todavía.");return;}
+  const mat = materiaActual;
+  if(confirm("¿Seguro que querés borrar TODOS los datos de "+(mat==="E1"?"Electrónica 1":"Electrónica 2")+"?\n\nEsto no se puede deshacer.")){
+    db.ref("resultados/"+mat).remove().then(()=>{
+      alert("✅ Datos de "+mat+" borrados.");
+    }).catch(e=>alert("Error al borrar: "+e.message));
+  }
+}
+
+function resetearTodo(){
+  if(!db){alert("No conectado a la nube todavía.");return;}
+  if(confirm("¿Seguro que querés borrar TODO (Electrónica 1 Y Electrónica 2)?\n\nEsto no se puede deshacer.")){
+    db.ref("resultados").remove().then(()=>{
+      alert("✅ Todos los datos borrados (E1 y E2).");
+    }).catch(e=>alert("Error al borrar: "+e.message));
+  }
 }
 
 if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",arrancar);
