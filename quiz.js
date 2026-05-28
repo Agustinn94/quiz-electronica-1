@@ -16,7 +16,7 @@ try {
 
 // Estos valores vienen de config.js, pero por si falla, ponemos respaldo
 const _MATERIA = (typeof MATERIA !== "undefined") ? MATERIA : "E1";
-const _ALUMNOS_E1 = (typeof ALUMNOS_E1 !== "undefined") ? ALUMNOS_E1 : ["Felipe Montero","Emmanuel Druard Rodríguez","Juan Inti Faversani Sueldo","Lautaro Alvarez","Martín"];
+const _ALUMNOS_E1 = (typeof ALUMNOS_E1 !== "undefined") ? ALUMNOS_E1 : ["Felipe Montero","Emmanuel Druard Rodríguez","Juan Inti Faversani Sueldo","Martín"];
 const _ALUMNOS_E2 = (typeof ALUMNOS_E2 !== "undefined") ? ALUMNOS_E2 : ["Tomas","Benjamin Gael Audia","Joaquin Argañaraz Saifán","Emir","Lazaro","Gustavo","Kevin","Frida Leonor Moyano Borquez","Benjamín Castillo","Martín","Bautista Romano","Espinosa","Said"];
 const _MINUTOS = (typeof MINUTOS !== "undefined") ? MINUTOS : 40;
 const _CANT = (typeof CANTIDAD_PREGUNTAS !== "undefined") ? CANTIDAD_PREGUNTAS : 15;
