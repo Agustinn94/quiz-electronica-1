@@ -2,41 +2,59 @@
 // LÓGICA DEL QUIZ - No hace falta editar nada acá
 // ============================================================
 
-// Init Firebase
+// Init Firebase (si falla, el quiz sigue funcionando igual)
 let db = null;
 try {
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.database();
-} catch(e) { console.warn("Firebase no configurado aún:", e); }
+  if (typeof firebaseConfig !== "undefined" && firebaseConfig.apiKey !== "PEGAR_AQUI") {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    console.log("Firebase conectado OK");
+  } else {
+    console.warn("Firebase sin configurar - el quiz funciona pero no guarda en la nube");
+  }
+} catch(e) { console.warn("Firebase error (el quiz sigue andando):", e); }
 
-const BANCO = MATERIA === "E1" ? BANCO_E1 : BANCO_E2;
-const ALUMNOS = MATERIA === "E1" ? ALUMNOS_E1 : ALUMNOS_E2;
-const TITULO = MATERIA === "E1" ? "Electrónica 1 — 4° Año" : "Electrónica 2 — 5° Año";
+// Estos valores vienen de config.js, pero por si falla, ponemos respaldo
+const _MATERIA = (typeof MATERIA !== "undefined") ? MATERIA : "E1";
+const _ALUMNOS_E1 = (typeof ALUMNOS_E1 !== "undefined") ? ALUMNOS_E1 : ["Felipe Montero","Emmanuel Druard Rodríguez","Juan Inti Faversani Sueldo","Lautaro Alvarez","Martín"];
+const _ALUMNOS_E2 = (typeof ALUMNOS_E2 !== "undefined") ? ALUMNOS_E2 : ["Tomas","Benjamin Gael Audia","Joaquin Argañaraz Saifán","Emir","Lazaro","Gustavo","Kevin","Frida Leonor Moyano Borquez","Benjamín Castillo","Martín","Bautista Romano","Espinosa","Said"];
+const _MINUTOS = (typeof MINUTOS !== "undefined") ? MINUTOS : 40;
+const _CANT = (typeof CANTIDAD_PREGUNTAS !== "undefined") ? CANTIDAD_PREGUNTAS : 15;
+
+const BANCO = _MATERIA === "E1" ? BANCO_E1 : BANCO_E2;
+const ALUMNOS = _MATERIA === "E1" ? _ALUMNOS_E1 : _ALUMNOS_E2;
+const TITULO = _MATERIA === "E1" ? "Electrónica 1 — 4° Año" : "Electrónica 2 — 5° Año";
 
 let estado = {
   nombre: "", preguntas: [], actual: 0, respuestas: {},
-  tiempo: MINUTOS*60, salidas: 0, terminado: false, sessionId: ""
+  tiempo: _MINUTOS*60, salidas: 0, terminado: false, sessionId: ""
 };
 let timerInt = null;
 
-// Mostrar título y nombres
-document.getElementById("home-title").textContent = "Quiz: " + TITULO;
-const namesList = document.getElementById("names-list");
-ALUMNOS.forEach(n => {
-  const b = document.createElement("button");
-  b.className = "name-btn";
-  b.textContent = n;
-  b.onclick = () => empezar(n);
-  namesList.appendChild(b);
-});
+// Mostrar título y nombres (esto corre apenas carga la página)
+function inicializar() {
+  const titEl = document.getElementById("home-title");
+  if (titEl) titEl.textContent = "Quiz: " + TITULO;
+
+  const namesList = document.getElementById("names-list");
+  if (namesList) {
+    namesList.innerHTML = "";
+    ALUMNOS.forEach(n => {
+      const b = document.createElement("button");
+      b.className = "name-btn";
+      b.textContent = n;
+      b.onclick = () => empezar(n);
+      namesList.appendChild(b);
+    });
+  }
+}
 
 function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
 
 function empezar(nombre) {
   estado.nombre = nombre;
   estado.sessionId = nombre.replace(/[^a-zA-Z0-9]/g,"_") + "_" + Date.now();
-  // Elegir preguntas al azar y mezclar opciones
-  const picked = shuffle(BANCO).slice(0, CANTIDAD_PREGUNTAS);
+  const picked = shuffle(BANCO).slice(0, _CANT);
   estado.preguntas = picked.map(q => {
     if(q.tipo === "mc"){
       const idx = q.o.map((_,i)=>i);
@@ -47,16 +65,14 @@ function empezar(nombre) {
     if(q.tipo === "unir") return {...q, _sr: shuffle(q.pairs.map(p=>p[1]))};
     return q;
   });
-  estado.actual = 0; estado.respuestas = {}; estado.tiempo = MINUTOS*60;
+  estado.actual = 0; estado.respuestas = {}; estado.tiempo = _MINUTOS*60;
   estado.salidas = 0; estado.terminado = false;
 
   document.getElementById("screen-home").classList.add("hidden");
   document.getElementById("screen-quiz").classList.remove("hidden");
   document.getElementById("q-name").textContent = nombre;
 
-  // Registrar inicio en Firebase
   guardarFirebase("iniciado");
-
   iniciarTimer();
   detectarSalida();
   render();
@@ -74,7 +90,10 @@ function iniciarTimer(){
   }, 1000);
 }
 
+let salidaRegistrada = false;
 function detectarSalida(){
+  if (salidaRegistrada) return;
+  salidaRegistrada = true;
   document.addEventListener("visibilitychange", ()=>{
     if(document.hidden && !estado.terminado){
       estado.salidas++;
@@ -157,7 +176,6 @@ function render(){
     });
   }
 
-  // Botones nav
   document.getElementById("q-prev").style.visibility = estado.actual>0 ? "visible" : "hidden";
   const next = document.getElementById("q-next");
   if(estado.actual < estado.preguntas.length-1){
@@ -188,10 +206,8 @@ function finalizar(){
   estado.terminado = true;
   clearInterval(timerInt);
   const {correctas, nota} = calcularNota();
-
   guardarFirebase("terminado", {nota, correctas});
 
-  // Mostrar resultados
   document.getElementById("screen-quiz").classList.add("hidden");
   document.getElementById("screen-results").classList.remove("hidden");
   document.getElementById("r-emoji").textContent = nota>=6 ? "🎉" : "📖";
@@ -202,7 +218,6 @@ function finalizar(){
   document.getElementById("r-msg").style.color = nota>=6 ? "#38ef7d" : "#ff4b2b";
   if(estado.salidas>0) document.getElementById("r-warns").textContent = `Salidas de la app detectadas: ${estado.salidas}`;
 
-  // Review
   const rev = document.getElementById("r-review");
   rev.innerHTML = "";
   estado.preguntas.forEach((q,i)=>{
@@ -233,41 +248,35 @@ function guardarFirebase(evento, extra={}){
   if(!db) return;
   const {correctas, nota} = calcularNota();
   const data = {
-    nombre: estado.nombre,
-    materia: MATERIA,
-    evento: evento,
-    preguntaActual: estado.actual+1,
-    totalPreguntas: estado.preguntas.length,
+    nombre: estado.nombre, materia: _MATERIA, evento: evento,
+    preguntaActual: estado.actual+1, totalPreguntas: estado.preguntas.length,
     respondidas: Object.keys(estado.respuestas).length,
-    notaParcial: nota,
-    correctasParcial: correctas,
-    salidas: estado.salidas,
-    tiempoUsado: MINUTOS*60 - estado.tiempo,
-    terminado: estado.terminado,
-    ultimaActividad: new Date().toLocaleString("es-AR"),
-    ...extra
+    notaParcial: nota, correctasParcial: correctas, salidas: estado.salidas,
+    tiempoUsado: _MINUTOS*60 - estado.tiempo, terminado: estado.terminado,
+    ultimaActividad: new Date().toLocaleString("es-AR"), ...extra
   };
-  try { db.ref("resultados/"+MATERIA+"/"+estado.sessionId).update(data); } catch(e){}
+  try { db.ref("resultados/"+_MATERIA+"/"+estado.sessionId).update(data); } catch(e){}
 }
 
-// ===== CALCULADORA =====
+// CALCULADORA
 let calcExpr = "";
 function toggleCalc(){ document.getElementById("calc-modal").classList.toggle("hidden"); }
 function calcIn(v){ calcExpr += v; updateCalc(); }
 function calcClear(){ calcExpr=""; updateCalc(); }
 function calcBack(){ calcExpr=calcExpr.slice(0,-1); updateCalc(); }
-function updateCalc(){
-  const d = document.getElementById("calc-display");
-  d.textContent = calcExpr || "0";
-}
+function updateCalc(){ document.getElementById("calc-display").textContent = calcExpr || "0"; }
 function calcEq(){
   try {
     let e = calcExpr.replace(/×/g,"*").replace(/÷/g,"/").replace(/−/g,"-");
     const r = Function('"use strict";return ('+e+')')();
     document.getElementById("calc-display").textContent = Math.round(r*10000)/10000;
     calcExpr = String(r);
-  } catch(err) {
-    document.getElementById("calc-display").textContent = "Error";
-    calcExpr = "";
-  }
+  } catch(err) { document.getElementById("calc-display").textContent = "Error"; calcExpr = ""; }
+}
+
+// ARRANCAR cuando la página termina de cargar
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", inicializar);
+} else {
+  inicializar();
 }
